@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper: Verifica que el usuario esté autenticado y su UID coincida con el ID proporcionado
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Helper: Verifica que el campo instituteId del documento coincida con el UID del usuario
+    function isTenantResource() {
+      return request.auth != null && resource.data.instituteId == request.auth.uid;
+    }
+    
+    // Helper: Verifica que el campo instituteId de los DATOS ENTRANTES coincida con el UID
+    function isTenantIncoming() {
+      return request.auth != null && request.resource.data.instituteId == request.auth.uid;
+    }
+
+    // Colección Students: Seguridad basada en el campo 'instituteId'
+    match /students/{studentId} {
+      // Leer: El documento existente debe pertenecer al usuario
+      allow read: if isTenantResource();
+      // Crear: El nuevo documento debe tener el instituteId correcto
+      allow create: if isTenantIncoming();
+      // Editar/Borrar: El documento existente debe pertenecer al usuario
+      allow update, delete: if isTenantResource();
+    }
+
+    // Colecciones de Configuración y Perfil: Seguridad basada en el ID del Documento (Path)
+    // El ID del documento SIEMPRE debe ser igual al UID del usuario (ej: config_fees/USER_UID)
+    match /config_fees/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /config_schedules/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /institutes/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /transactions/{transactionId} {
+      allow read, update, delete: if isTenantResource();
+      allow create: if isTenantIncoming();
+    }
+  }
+}
